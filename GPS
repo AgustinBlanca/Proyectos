@@ -1,0 +1,121 @@
+# GPS
+esphome:
+  name: atom-gps-test-2
+
+esp32:
+  board: m5stack-atom
+  framework:
+    type: arduino
+
+logger:
+wifi:
+  networks:
+    - ssid: "MOVISTAR_C5B0"
+      password: "AC789829113A4EA05A60"
+      priority: 100
+    - ssid: "AndroidARH"
+      password: "paod4667"
+      priority: 10
+  ap:
+    ssid: "AtomGPS_Fallback"
+    password: "12345678"
+api:
+
+captive_portal:
+
+# Web embebida con una página / y una /dashboard algo más compacta
+web_server:
+  port: 80
+  include_internal: true
+  version: 3
+
+ota:
+  - platform: esphome
+
+# ======== UART + GPS (igual que antes) =========
+uart:
+  id: uart_gps
+  tx_pin: GPIO22
+  rx_pin: GPIO19
+  baud_rate: 115200
+  rx_buffer_size: 2048
+gps:
+  uart_id: uart_gps
+  latitude:
+    name: "GPS Latitud"
+    accuracy_decimals: 6
+  longitude:
+    name: "GPS Longitud"
+    accuracy_decimals: 6
+  altitude:
+    name: "GPS Altitud"
+    unit_of_measurement: "m"
+    accuracy_decimals: 0
+  speed:
+    name: "GPS Velocidad"
+    unit_of_measurement: "km/h"
+    accuracy_decimals: 0
+  course:
+    name: "GPS Rumbo"
+    accuracy_decimals: 0
+ 
+
+# ======== LED RGB interno (GPIO27) =========
+light:
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812
+    pin: GPIO27        # LED interno del Atom Lite
+    num_leds: 1
+    name: "Atom LED"
+    id: atom_led
+    restore_mode: ALWAYS_ON
+    default_transition_length: 150ms
+
+# ======== Botón físico (GPIO39) =========
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO39
+      inverted: true
+    name: Atom Button
+    id: atom_button
+    on_press:
+      - script.execute: led_cycle_script
+
+
+# ======== Botón virtual en la web =========
+button:
+  - platform: template
+    name: "Cycle LED Color"
+    on_press:
+      - script.execute: led_cycle_script
+
+# ======== Script: va rotando colores =========
+script:
+  - id: led_cycle_script
+    mode: restart
+    then:
+      - if:
+          condition:
+            light.is_on: atom_led
+          then:
+            - lambda: |-
+                static int idx = 0;
+                const uint32_t colors[] = {
+                  0xFF0000, // rojo
+                  0x00FF00, // verde
+                  0x0000FF, // azul
+                  0xFFFF00, // amarillo
+                  0xFF00FF, // magenta
+                  0x00FFFF, // cian
+                  0xFFFFFF  // blanco
+                };
+                idx = (idx + 1) % 7;
+                auto call = id(atom_led).turn_on();
+                call.set_rgb(((colors[idx]>>16)&0xFF)/255.0,
+                             ((colors[idx]>>8)&0xFF)/255.0,
+                             ((colors[idx]>>0)&0xFF)/255.0);
+                call.perform();
+          else:
+            - light.turn_on: atom_led
